@@ -89,7 +89,7 @@ class ParserKadabitr:
         return data
 
     def get_elements_in_data(self):
-        time.sleep(5)
+        time.sleep(2)
         response_txt = self.response_text(1)
         soup = BS(response_txt, 'html.parser')
         count_affairs = soup.select('#documentsTotalCount')[0]['value']
@@ -232,24 +232,30 @@ class ParserKadabitr:
         return data
 
     def get_price_id(self, url):
-        time.sleep(1)
         self.update_headers(self.wasm)
         response = None
         while not response:
             try:
+                time.sleep(.3)
                 response = requests.get(url, headers=self.headers_price)
                 print(response)
+                if response.status_code == 200:
+                    with open('page2.html', 'w', encoding='utf8') as html_file:
+                        html_file.write(response.text)
+                    soup = BS(response.text, 'html.parser')
+                    main_id = soup.select('.js-instanceId')[-1]['value']
+                    return main_id
+                elif response.status_code == 451:
+                    self.full_cookies = str(input('Введите cookie: '))
+                    self.head_cooikies, self.wasm = self.split_cookies()
+                    self.update_headers(self.wasm)
+                    self.headers_price_get['Cookie'] = self.headers_search['Cookie']
             except Exception as ex:
                 print(ex)
                 print('[WARNING] Проблема с подключением')
                 time.sleep(30)
                 print('[INFO] Попытка подключения')
-            if response.status_code == 200:
-                with open('page2.html', 'w', encoding='utf8') as html_file:
-                    html_file.write(response.text)
-                soup = BS(response.text, 'html.parser')
-                main_id = soup.select('.js-instanceId')[-1]['value']
-                return main_id
+
 
     def get_price_request(self, url):
         price_id = self.get_price_id(url)
@@ -267,17 +273,23 @@ class ParserKadabitr:
         while not response:
             try:
                 req_url = self.get_price_request(url)
-                time.sleep(1)
+                time.sleep(.3)
                 response = requests.get(req_url, headers=self.headers_price_get)
                 print(response)
+                if response.status_code == 200:
+                    return response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
+                elif response.status_code == 451:
+                    self.full_cookies = str(input('Введите cookie: '))
+                    self.head_cooikies, self.wasm = self.split_cookies()
+                    self.update_headers(self.wasm)
+                    self.headers_price_get['Cookie'] = self.headers_search['Cookie']
             except Exception as ex:
                 print(ex)
                 print('[WARNING] Проблема с подключением')
                 print('[INFO] Попытка подключения....')
                 time.sleep(30)
-            if response:
-                if response.status_code == 200:
-                    return response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
+
+
 
 
 if __name__ == '__main__':
