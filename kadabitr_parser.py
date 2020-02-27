@@ -94,23 +94,27 @@ class ParserKadabitr:
         count_affairs = soup.select('#documentsTotalCount')[0]['value']
         return count_affairs
 
-    def get_data_low(self):
+    def get_data(self):
         count_affairs = int(self.get_elements_in_data())
         print('[INFO] Количество дел ' + str(count_affairs))
         if count_affairs > 1000:
             print('[WARNING] Неполная база, т.к количество данных больше тысячи')
             count_affairs = 1000
         page = count_affairs//25
+        if page == 0:
+            page = 1
         print('[INFO] Количество страниц ' + str(page))
         data_allpages = []
         for p in range(1, page+1):
             data_low = self.get_page_data(p)
             for data in data_low:
                 data_allpages.append(data)
+        for data in data_allpages:
+            price = self.get_price(data['href'])
+            data['price'] = price
         self.save_data_excel(data_allpages)
 
     def save_data_excel(self, data):
-        print(data)
         file_name = 'data.xls'
         wb = xlwt.Workbook()
         ws = wb.add_sheet('sheet')
@@ -130,6 +134,7 @@ class ParserKadabitr:
             ws.write(i + 1, 0, data[i]['defendant_name'])
             ws.write(i + 1, 1, data[i]['defendant_adress'])
             ws.write(i + 1, 6, data[i]['plaintiff_name'])
+            ws.write(i + 1, 7, data[i]['price'])
             ws.write(i + 1, 8, data[i]['num'])
         wb.save(file_name)
         print(f'[INFO] Файл {file_name} создан')
@@ -223,7 +228,7 @@ class ParserKadabitr:
         return data
 
     def get_price_id(self, url):
-        time.sleep(5)
+        time.sleep(1)
         self.update_headers(self.wasm)
         response = None
         while not response:
@@ -251,7 +256,8 @@ class ParserKadabitr:
         return url_req
 
     def get_price(self, url):
-        time.sleep(2)
+        print('[INFO] Получение суммы исковых требований для ' + url)
+        time.sleep(1)
         req_url = self.get_price_request(url)
         self.headers_price_get['Referer'] = url
         self.headers_price_get['Cookie'] = self.headers_search['Cookie']
@@ -266,12 +272,10 @@ class ParserKadabitr:
                 time.sleep(30)
                 print('[INFO] Попытка подключения')
             if response.status_code == 200:
-                return response.json()
+                return response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
 
 
-
-
-parser = ParserKadabitr()
-data = parser.get_price('https://kad.arbitr.ru/Card/8aeb1c4a-24c5-47ab-9bbe-8ee93e1a0d04')
-print(data['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1])
+if __name__ == '__main__':
+    parser = ParserKadabitr()
+    parser.get_data()
 
