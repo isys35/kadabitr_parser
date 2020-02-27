@@ -4,7 +4,7 @@ import time
 import traceback
 from requests.exceptions import ConnectionError
 from bs4 import BeautifulSoup as BS
-
+import xlwt
 
 class ParserKadabitr:
     def __init__(self):
@@ -18,7 +18,7 @@ class ParserKadabitr:
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
             'x-date-format': 'iso',
-            'Content-Length': '143',
+            'Content-Length': '180',
             'Origin': 'http://kad.arbitr.ru',
             'Connection': 'keep-alive',
             'Referer': 'http://kad.arbitr.ru/',
@@ -76,6 +76,37 @@ class ParserKadabitr:
             count_affairs = 1000
         page = count_affairs//25
         print('[INFO] Количество страниц ' + str(page))
+        data_allpages = []
+        for p in range(1, page+1):
+            data_low = self.get_page_data(p)
+            for data in data_low:
+                data_allpages.append(data)
+        self.save_data_excel(data_allpages)
+
+    def save_data_excel(self, data):
+        print(data)
+        file_name = 'data.xls'
+        wb = xlwt.Workbook()
+        ws = wb.add_sheet('sheet')
+        ws.col(4).width = 6000
+        for i in range(0,9):
+            ws.col(i).width = 6000
+        ws.write(0, 0, 'Наименование')
+        ws.write(0, 1, 'Адрес')
+        ws.write(0, 2, 'Телефон 1')
+        ws.write(0, 3, 'Телефон 2')
+        ws.write(0, 4, 'Телефон 3')
+        ws.write(0, 5, 'Телефон 4')
+        ws.write(0, 6, 'Истец')
+        ws.write(0, 7, 'Сумма исковых требований')
+        ws.write(0, 8, 'Номер дела')
+        for i in range(0, len(data)):
+            ws.write(i + 1, 0, data[i]['defendant_name'])
+            ws.write(i + 1, 1, data[i]['defendant_adress'])
+            ws.write(i + 1, 6, data[i]['plaintiff_name'])
+            ws.write(i + 1, 8, data[i]['num'])
+        wb.save(file_name)
+        print(f'[INFO] Файл {file_name} создан')
 
     def response_text(self, page):
         data_json = self.get_data_json(page, self.date_from, self.date_to)
@@ -95,7 +126,10 @@ class ParserKadabitr:
 
     def get_page_data(self, page):
         time.sleep(5)
+        print('[INFO] Страница ' + str(page))
         response_txt = self.response_text(page)
+        with open('page.html', 'wb') as html_file:
+            html_file.write(response_txt.encode('cp1251'))
         soup = BS(response_txt, 'html.parser')
         containers = soup.select('.b-container')
         all_split_containers = []
@@ -118,14 +152,34 @@ class ParserKadabitr:
             else:
                 judge = None
             instance = affair[1].select('div')[-1]['title']
-            plaintiff_name = affair[2].select('.js-rolloverHtml')[0].select('strong')[0].text
-            plaintiff_inn = affair[2].select('.js-rolloverHtml')[0].select('div')[0].text.replace('\n', '').strip()
-            plaintiff_adress = affair[2].select('.js-rolloverHtml')[0].text\
-                .replace(plaintiff_name, '').replace(plaintiff_inn,'').replace('\n', '').strip()
-            defendant_name = affair[3].select('.js-rolloverHtml')[0].select('strong')[0].text
-            defendant_inn = affair[3].select('.js-rolloverHtml')[0].select('div')[0].text.replace('\n', '').strip()
-            defendant_adress = affair[3].select('.js-rolloverHtml')[0].text \
-                .replace(defendant_name, '').replace(defendant_inn, '').replace('\n', '').strip()
+            plaintiff_name = affair[2].select('.js-rolloverHtml')
+            if plaintiff_name:
+                plaintiff_name = affair[2].select('.js-rolloverHtml')[0].select('strong')[0].text
+                plaintiff_inn = affair[2].select('.js-rolloverHtml')[0].select('div')
+                if plaintiff_inn:
+                    plaintiff_inn = plaintiff_inn[0].text.replace('\n', '').strip()
+                else:
+                    plaintiff_inn = 'Данные скрыты'
+                plaintiff_adress = affair[2].select('.js-rolloverHtml')[0].text\
+                    .replace(plaintiff_name, '').replace(plaintiff_inn,'').replace('\n', '').strip()
+            else:
+                plaintiff_name = ''
+                plaintiff_inn = ''
+                plaintiff_adress = ''
+            defendant_name = affair[3].select('.js-rolloverHtml')
+            if defendant_name:
+                defendant_name = affair[3].select('.js-rolloverHtml')[0].select('strong')[0].text
+                defendant_inn = affair[3].select('.js-rolloverHtml')[0].select('div')
+                if defendant_inn:
+                    defendant_inn = defendant_inn[0].text.replace('\n', '').strip()
+                else:
+                    defendant_inn = 'Данные скрыты'
+                defendant_adress = affair[3].select('.js-rolloverHtml')[0].text \
+                    .replace(defendant_name, '').replace(defendant_inn, '').replace('\n', '').strip()
+            else:
+                defendant_name = ''
+                defendant_inn = ''
+                defendant_adress = ''
             affair_data = {
                 'date': date,
                 'num': num,
@@ -145,4 +199,4 @@ class ParserKadabitr:
 
 
 parser = ParserKadabitr()
-parser.get_page_data(1)
+parser.get_data_low()
