@@ -23,6 +23,18 @@ class ParserKadabitr:
             'Connection': 'keep-alive',
             'Referer': 'http://kad.arbitr.ru/',
         }
+        self.headers_price ={
+            'Host': 'kad.arbitr.ru',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Referer': 'https://kad.arbitr.ru/',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0'
+        }
         self.full_cookies = str(input('Введите cookie: '))
         self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
         self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
@@ -43,8 +55,10 @@ class ParserKadabitr:
                 head_cooikies += cookie + '; '
             return head_cooikies, wasm
 
-    def update_headers(self, wasm):
+    def update_headers(self, wasm, referer=None):
         self.headers_search['Cookie'] = self.head_cooikies + 'wasm=' + wasm
+        self.headers_price['Cookie'] = self.head_cooikies + 'wasm=' + wasm
+        self.headers_price['Cookie'] = 'notShowTooltip=yes; ' + self.headers_price['Cookie']
 
     def remake_date(self):
         day_from = self.date_from.split('.')[0]
@@ -115,7 +129,7 @@ class ParserKadabitr:
         while not response:
             try:
                 response = requests.post(self.search_url, headers=self.headers_search, data=data_json.encode('utf8'))
-                print(response.status_code)
+                print(response)
             except Exception as ex:
                 print(ex)
                 print('[WARNING] Проблема с подключением')
@@ -196,7 +210,26 @@ class ParserKadabitr:
             data.append(affair_data)
         return data
 
+    def get_price_id(self, url):
+        time.sleep(5)
+        self.update_headers(self.wasm)
+        response = None
+        while not response:
+            try:
+                response = requests.get(url, headers=self.headers_price)
+                print(response)
+            except Exception as ex:
+                print(ex)
+                print('[WARNING] Проблема с подключением')
+                time.sleep(30)
+                print('[INFO] Попытка подключения')
+            if response.status_code == 200:
+                with open('page2.html', 'w', encoding='utf8') as html_file:
+                    html_file.write(response.text)
+                soup = BS(response.text, 'html.parser')
+                main_id = soup.select('.js-instanceId')[-1]['value']
+                return main_id
 
 
 parser = ParserKadabitr()
-parser.get_data_low()
+parser.get_price_id('https://kad.arbitr.ru/Card/d57dd0a3-6012-4100-91fd-28a66f704a4f')
