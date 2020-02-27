@@ -52,6 +52,7 @@ class ParserKadabitr:
         self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
         self.remake_date()
         self.head_cooikies, self.wasm = self.split_cookies()
+        self.count_affairs = 0
 
     def split_cookies(self):
         splited_cookies = self.full_cookies.split('; ')
@@ -100,6 +101,7 @@ class ParserKadabitr:
         if count_affairs > 1000:
             print('[WARNING] Неполная база, т.к количество данных больше тысячи')
             count_affairs = 1000
+        self.count_affairs = count_affairs
         page = count_affairs//25
         if page == 0:
             page = 1
@@ -112,6 +114,8 @@ class ParserKadabitr:
         for data in data_allpages:
             price = self.get_price(data['href'])
             data['price'] = price
+            self.count_affairs -= 1
+            print('[INFO] Осталось {} дел '.format(self.count_affairs))
         self.save_data_excel(data_allpages)
 
     def save_data_excel(self, data):
