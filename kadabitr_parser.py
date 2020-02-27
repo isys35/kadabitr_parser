@@ -261,22 +261,23 @@ class ParserKadabitr:
 
     def get_price(self, url):
         print('[INFO] Получение суммы исковых требований для ' + url)
-        time.sleep(1)
-        req_url = self.get_price_request(url)
         self.headers_price_get['Referer'] = url
         self.headers_price_get['Cookie'] = self.headers_search['Cookie']
         response = None
         while not response:
             try:
+                req_url = self.get_price_request(url)
+                time.sleep(1)
                 response = requests.get(req_url, headers=self.headers_price_get)
                 print(response)
             except Exception as ex:
                 print(ex)
                 print('[WARNING] Проблема с подключением')
+                print('[INFO] Попытка подключения....')
                 time.sleep(30)
-                print('[INFO] Попытка подключения')
-            if response.status_code == 200:
-                return response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
+            if response:
+                if response.status_code == 200:
+                    return response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
 
 
 if __name__ == '__main__':
