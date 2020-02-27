@@ -23,7 +23,7 @@ class ParserKadabitr:
             'Connection': 'keep-alive',
             'Referer': 'http://kad.arbitr.ru/',
         }
-        self.headers_price ={
+        self.headers_price = {
             'Host': 'kad.arbitr.ru',
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -34,6 +34,18 @@ class ParserKadabitr:
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
             'Cache-Control': 'max-age=0'
+        }
+        self.headers_price_get = {
+            'Host': 'kad.arbitr.ru',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+            'Accept': 'application/json, text/javascript, */*',
+            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Connection': 'keep-alive',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
         }
         self.full_cookies = str(input('Введите cookie: '))
         self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
@@ -230,6 +242,36 @@ class ParserKadabitr:
                 main_id = soup.select('.js-instanceId')[-1]['value']
                 return main_id
 
+    def get_price_request(self, url):
+        price_id = self.get_price_id(url)
+        case_id = url.split('/')[-1]
+        time_id = str(time.time()).replace('.','')[:-3]
+        url_req = 'https://kad.arbitr.ru/Kad/InstanceDocumentsPage?_=%s&id=%s&caseId=%s&withProtocols=true&perPage=30' \
+                 '&page=1' % (time_id, price_id, case_id)
+        return url_req
+
+    def get_price(self, url):
+        time.sleep(2)
+        req_url = self.get_price_request(url)
+        self.headers_price_get['Referer'] = url
+        self.headers_price_get['Cookie'] = self.headers_search['Cookie']
+        response = None
+        while not response:
+            try:
+                response = requests.get(req_url, headers=self.headers_price_get)
+                print(response)
+            except Exception as ex:
+                print(ex)
+                print('[WARNING] Проблема с подключением')
+                time.sleep(30)
+                print('[INFO] Попытка подключения')
+            if response.status_code == 200:
+                return response.json()
+
+
+
 
 parser = ParserKadabitr()
-parser.get_price_id('https://kad.arbitr.ru/Card/d57dd0a3-6012-4100-91fd-28a66f704a4f')
+data = parser.get_price('https://kad.arbitr.ru/Card/8aeb1c4a-24c5-47ab-9bbe-8ee93e1a0d04')
+print(data['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1])
+
