@@ -151,13 +151,18 @@ class ParserKadabitr:
             try:
                 response = requests.post(self.search_url, headers=self.headers_search, data=data_json.encode('utf8'))
                 print(response)
+                if response.status_code == 200:
+                    return response.text
+                elif response.status_code == 451:
+                    self.full_cookies = str(input('Введите cookie: '))
+                    self.head_cooikies, self.wasm = self.split_cookies()
+                    self.update_headers(self.wasm)
             except Exception as ex:
                 print(ex)
                 print('[WARNING] Проблема с подключением')
                 time.sleep(30)
                 print('[INFO] Попытка подключения')
-            if response.status_code == 200:
-                return response.text
+
 
     def get_page_data(self, page):
         time.sleep(5)
@@ -256,7 +261,6 @@ class ParserKadabitr:
                 time.sleep(30)
                 print('[INFO] Попытка подключения')
 
-
     def get_price_request(self, url):
         price_id = self.get_price_id(url)
         case_id = url.split('/')[-1]
@@ -290,9 +294,14 @@ class ParserKadabitr:
                 time.sleep(30)
 
 
-
-
 if __name__ == '__main__':
-    parser = ParserKadabitr()
-    parser.get_data()
+    try:
+        parser = ParserKadabitr()
+        parser.get_data()
+    except Exception as ex:
+        print(ex)
+        print(traceback.format_exc())
+        with open('eror.txt', 'w') as eror_file:
+            eror_file.write(str(ex) + '\n' + str(traceback.format_exc()))
+
 
