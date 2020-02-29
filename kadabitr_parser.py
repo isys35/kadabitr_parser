@@ -1,5 +1,6 @@
 import requests
 from requests import Session
+from requests import Session
 import time
 import traceback
 from requests.exceptions import ConnectionError
@@ -47,12 +48,24 @@ class ParserKadabitr:
             'Pragma': 'no-cache',
             'Cache-Control': 'no-cache'
         }
+        self.headers_phone = {
+                'Host': 'www.list-org.com',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'TE': 'Trailers'
+        }
         self.full_cookies = str(input('Введите cookie: '))
         self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
         self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
         self.remake_date()
         self.head_cooikies, self.wasm = self.split_cookies()
         self.count_affairs = 0
+        self.url_find_phone_by_inn = 'https://www.list-org.com/search?type=inn&val='
+        self.session = Session()
 
     def split_cookies(self):
         splited_cookies = self.full_cookies.split('; ')
@@ -113,9 +126,13 @@ class ParserKadabitr:
                 data_allpages.append(data)
         for data in data_allpages:
             price = self.get_price(data['href'])
+            phones = self.get_phone(data['defendant_inn'])
+            print(phones)
             data['price'] = price
+            data['phones'] = phones
             self.count_affairs -= 1
             print('[INFO] Осталось {} дел '.format(self.count_affairs))
+            self.save_data_excel(data_allpages)
         self.save_data_excel(data_allpages)
 
     def save_data_excel(self, data):
@@ -138,8 +155,13 @@ class ParserKadabitr:
             ws.write(i + 1, 0, data[i]['defendant_name'])
             ws.write(i + 1, 1, data[i]['defendant_adress'])
             ws.write(i + 1, 6, data[i]['plaintiff_name'])
-            ws.write(i + 1, 7, data[i]['price'])
+            if 'price' in data[i]:
+                ws.write(i + 1, 7, data[i]['price'])
             ws.write(i + 1, 8, data[i]['num'])
+            if 'phones' in data[i]:
+                for n in range(0, len(data[i]['phones'])):
+                    if n < 4:
+                        ws.write(i + 1, 2 + n, data[i]['phones'][n])
         wb.save(file_name)
         print(f'[INFO] Файл {file_name} создан')
 
@@ -162,7 +184,6 @@ class ParserKadabitr:
                 print('[WARNING] Проблема с подключением')
                 time.sleep(30)
                 print('[INFO] Попытка подключения')
-
 
     def get_page_data(self, page):
         time.sleep(5)
@@ -220,6 +241,8 @@ class ParserKadabitr:
                 defendant_name = ''
                 defendant_inn = ''
                 defendant_adress = ''
+            if defendant_inn:
+                defendant_inn = defendant_inn.split('ИНН: ')[-1]
             affair_data = {
                 'date': date,
                 'num': num,
@@ -293,11 +316,56 @@ class ParserKadabitr:
                 print('[INFO] Попытка подключения....')
                 time.sleep(30)
 
+    def get_phone_url(self, inn):
+        time.sleep(.2)
+        r = self.session.get(self.url_find_phone_by_inn+inn, headers=self.headers_phone)
+        if r.status_code == 200:
+            Except = True
+            p = None
+            while Except:
+                try:
+                    soup = BS(r.text, 'html.parser')
+                    p = soup.select('.org_list')[0].select('p')
+                    Except = False
+                except Exception:
+                    print(self.url_find_phone_by_inn + inn)
+                    input('[WARNING] Пройдите рекапчу')
+                    print('[INFO] Пересоздаём ссесию')
+                    self.session = Session()
+                    r = self.session.get(self.url_find_phone_by_inn + inn, headers=self.headers_phone)
+            if p:
+                org_url = soup.select('.org_list')[0].select('p')[0].select('a')[0]['href']
+                return org_url
+            else:
+                return None
+
+    def get_phone(self, inn):
+        if inn == 'Данные скрыты':
+            return []
+        print('[INFO] Получение телефона для ' + str(inn))
+        url = self.get_phone_url(inn)
+        if not url:
+            return []
+        url = 'https://www.list-org.com' + url
+        time.sleep(.2)
+        r = requests.get(url, headers=self.headers_phone)
+        if r.status_code == 200:
+            soup = BS(r.text, 'html.parser')
+            p = soup.select('p')
+            phones = []
+            for el in p:
+                if el.select('i'):
+                    if 'Телефон:' in el.select('i')[0].text:
+                        for a in el.select('a'):
+                            phones.append(a.text)
+            return phones
+
 
 if __name__ == '__main__':
     try:
         parser = ParserKadabitr()
         parser.get_data()
+
     except Exception as ex:
         print(ex)
         print(traceback.format_exc())
