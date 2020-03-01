@@ -6,6 +6,7 @@ import traceback
 from requests.exceptions import ConnectionError
 from bs4 import BeautifulSoup as BS
 import xlwt
+import webbrowser
 
 class ParserKadabitr:
     def __init__(self):
@@ -126,9 +127,14 @@ class ParserKadabitr:
                 data_allpages.append(data)
         for data in data_allpages:
             price = self.get_price(data['href'])
+            price = price.replace(',', '.')
+            print(price)
             phones = self.get_phone(data['defendant_inn'])
             print(phones)
-            data['price'] = price
+            try:
+                data['price'] = float(price)
+            except ValueError:
+                data['price'] = None
             data['phones'] = phones
             self.count_affairs -= 1
             print('[INFO] Осталось {} дел '.format(self.count_affairs))
@@ -189,8 +195,8 @@ class ParserKadabitr:
         time.sleep(5)
         print('[INFO] Страница ' + str(page))
         response_txt = self.response_text(page)
-        with open('page.html', 'wb') as html_file:
-            html_file.write(response_txt.encode('cp1251'))
+        #with open('page.html', 'wb') as html_file:
+            #html_file.write(response_txt.encode('cp1251'))
         soup = BS(response_txt, 'html.parser')
         containers = soup.select('.b-container')
         all_split_containers = []
@@ -268,8 +274,8 @@ class ParserKadabitr:
                 response = requests.get(url, headers=self.headers_price)
                 print(response)
                 if response.status_code == 200:
-                    with open('page2.html', 'w', encoding='utf8') as html_file:
-                        html_file.write(response.text)
+                    #with open('page2.html', 'w', encoding='utf8') as html_file:
+                        #html_file.write(response.text)
                     soup = BS(response.text, 'html.parser')
                     main_id = soup.select('.js-instanceId')[-1]['value']
                     return main_id
@@ -321,6 +327,7 @@ class ParserKadabitr:
         r = self.session.get(self.url_find_phone_by_inn+inn, headers=self.headers_phone)
         if r.status_code == 200:
             Except = True
+            soup = BS(r.text, 'html.parser')
             p = None
             while Except:
                 try:
@@ -329,6 +336,7 @@ class ParserKadabitr:
                     Except = False
                 except Exception:
                     print(self.url_find_phone_by_inn + inn)
+                    webbrowser.open(self.url_find_phone_by_inn + inn)
                     input('[WARNING] Пройдите рекапчу')
                     print('[INFO] Пересоздаём ссесию')
                     self.session = Session()
