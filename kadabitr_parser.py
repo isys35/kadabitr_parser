@@ -492,23 +492,27 @@ class ParserKadabitr:
     def get_phone(self, inn):
         if inn == 'Данные скрыты':
             return []
+        if not inn:
+            return []
         print('[INFO] Получение телефона для ' + str(inn))
         url = self.get_phone_url(inn)
         if not url:
             return []
         url = 'https://www.list-org.com' + url
         time.sleep(.2)
-        r = requests.get(url, headers=self.headers_phone)
-        if r.status_code == 200:
-            soup = BS(r.text, 'html.parser')
-            p = soup.select('p')
-            phones = []
-            for el in p:
-                if el.select('i'):
-                    if 'Телефон:' in el.select('i')[0].text:
-                        for a in el.select('a'):
-                            phones.append(a.text)
-            return phones
+        r = None
+        while not r:
+            r = self.session.get(url, headers=self.headers_phone)
+            if r.status_code == 200:
+                soup = BS(r.text, 'html.parser')
+                p = soup.select('p')
+                phones = []
+                for el in p:
+                    if el.select('i'):
+                        if 'Телефон:' in el.select('i')[0].text:
+                            for a in el.select('a'):
+                                phones.append(a.text)
+                return phones
 
 
 if __name__ == '__main__':
