@@ -20,59 +20,77 @@ def load_file(file_name):
 
 
 COURTS = load_file('courts.txt')
+HEADERS = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+}
+
+
+def select_courts():
+    add_court = input('Добавить суд (д/н): ') == 'д'
+    court_ids = []
+    while add_court:
+        court_input = input('Введите полное наименование суда: ')
+        if court_input.lower() in COURTS:
+            court_id = COURTS[court_input.lower()]
+            print(court_input, court_id)
+            court_ids.append(court_id)
+        else:
+            print(f'[WARNING] {court_input} не найден')
+        add_court = input('Добавить суд (д/н): ') == 'д'
+    return court_ids
 
 
 class ParserKadabitr:
     def __init__(self):
-        self.search_url = 'http://kad.arbitr.ru/Kad/SearchInstances'
-        self.headers_search = {
-            'Host': 'kad.arbitr.ru',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
-            'Accept': '*/*',
-            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding': 'gzip, deflate',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'x-date-format': 'iso',
-            'Content-Length': '180',
-            'Origin': 'http://kad.arbitr.ru',
-            'Connection': 'keep-alive',
-            'Referer': 'http://kad.arbitr.ru/',
-        }
-        self.headers_price = {
-            'Host': 'kad.arbitr.ru',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://kad.arbitr.ru/',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0'
-        }
-        self.headers_price_get = {
-            'Host': 'kad.arbitr.ru',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
-            'Accept': 'application/json, text/javascript, */*',
-            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Connection': 'keep-alive',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache'
-        }
-        self.headers_phone = {
-            'Host': 'www.list-org.com',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'TE': 'Trailers'
-        }
+        self.search_url = 'https://kad.arbitr.ru/Kad/SearchInstances'
+        # self.headers_search = {
+        #     'Host': 'kad.arbitr.ru',
+        #     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+        #     'Accept': '*/*',
+        #     'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+        #     'Accept-Encoding': 'gzip, deflate',
+        #     'Content-Type': 'application/json',
+        #     'X-Requested-With': 'XMLHttpRequest',
+        #     'x-date-format': 'iso',
+        #     'Content-Length': '180',
+        #     'Origin': 'http://kad.arbitr.ru',
+        #     'Connection': 'keep-alive',
+        #     'Referer': 'http://kad.arbitr.ru/',
+        # }
+        # self.headers_price = {
+        #     'Host': 'kad.arbitr.ru',
+        #     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+        #     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        #     'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+        #     'Accept-Encoding': 'gzip, deflate, br',
+        #     'Referer': 'https://kad.arbitr.ru/',
+        #     'Content-Type': 'application/x-www-form-urlencoded',
+        #     'Connection': 'keep-alive',
+        #     'Upgrade-Insecure-Requests': '1',
+        #     'Cache-Control': 'max-age=0'
+        # }
+        # self.headers_price_get = {
+        #     'Host': 'kad.arbitr.ru',
+        #     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+        #     'Accept': 'application/json, text/javascript, */*',
+        #     'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+        #     'Accept-Encoding': 'gzip, deflate, br',
+        #     'Content-Type': 'application/json',
+        #     'X-Requested-With': 'XMLHttpRequest',
+        #     'Connection': 'keep-alive',
+        #     'Pragma': 'no-cache',
+        #     'Cache-Control': 'no-cache'
+        # }
+        # self.headers_phone = {
+        #     'Host': 'www.list-org.com',
+        #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+        #     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        #     'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+        #     'Accept-Encoding': 'gzip, deflate, br',
+        #     'Connection': 'keep-alive',
+        #     'Upgrade-Insecure-Requests': '1',
+        #     'TE': 'Trailers'
+        # }
         #self.full_cookies = str(input('Введите cookie: '))
         #self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
         #self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
@@ -81,22 +99,9 @@ class ParserKadabitr:
         #self.remake_date()
         #self.head_cooikies, self.wasm = self.split_cookies()
         self.main_page = 'https://kad.arbitr.ru/'
-        self.count_affairs = 0
-        self.url_find_phone_by_inn = 'https://www.list-org.com/search?type=inn&val='
-        self.session = Session()
-
-    def get_courts(self):
-        add_court = input('Добавить суд (д/н): ') == 'д'
-        list_courts = []
-        while add_court:
-            court_input = input('Введите полное наименование суда: ')
-            print(court_input)
-            if court_input.lower() in COURTS:
-                list_courts.append(COURTS[court_input.lower()])
-            else:
-                print(f'[WARNING] {court_input} не найден')
-            add_court = input('Добавить суд (д/н): ') == 'д'
-        return list_courts
+        # self.count_affairs = 0
+        # self.url_find_phone_by_inn = 'https://www.list-org.com/search?type=inn&val='
+        # self.session = Session()
 
     def split_cookies(self):
         splited_cookies = self.full_cookies.split('; ')
@@ -117,15 +122,16 @@ class ParserKadabitr:
         self.headers_price['Cookie'] = self.head_cooikies + 'wasm=' + wasm
         self.headers_price['Cookie'] = 'notShowTooltip=yes; ' + self.headers_price['Cookie']
 
-    def remake_date(self):
-        day_from = self.date_from.split('.')[0]
-        month_from = self.date_from.split('.')[1]
-        year_from = self.date_from.split('.')[2]
-        self.date_from = '"%s-%s-%sT00:00:00"' % (year_from, month_from, day_from)
-        day_to = self.date_to.split('.')[0]
-        month_to = self.date_to.split('.')[1]
-        year_to = self.date_to.split('.')[2]
-        self.date_to = '"%s-%s-%sT23:59:59"' % (year_to, month_to, day_to)
+    def remake_date(self, date_from, date_to):
+        day_from = date_from.split('.')[0]
+        month_from = date_from.split('.')[1]
+        year_from = date_from.split('.')[2]
+        date_from = '"%s-%s-%sT00:00:00"' % (year_from, month_from, day_from)
+        day_to = date_to.split('.')[0]
+        month_to = date_to.split('.')[1]
+        year_to = date_to.split('.')[2]
+        date_to = '"%s-%s-%sT23:59:59"' % (year_to, month_to, day_to)
+        return date_from, date_to
 
     def get_data_json(self, page, date_from, date_to):
         if self.party_member:
@@ -175,6 +181,37 @@ class ParserKadabitr:
             print('[INFO] Осталось {} дел '.format(self.count_affairs))
             self.save_data_excel(data_allpages)
         self.save_data_excel(data_allpages)
+
+    def get_count_affairs(self, selected_courts, date_from, date_to, selected_party_member):
+        cookie = self.get_cookie()
+        post_data = {"Page": 1,
+                     "Count": 25,
+                     "CaseType": "G",
+                     "Courts": selected_courts,
+                     "DateFrom": date_from,
+                     "DateTo": date_to,
+                     "Sides": selected_party_member,
+                     "Judges": [],
+                     "CaseNumbers": [],
+                     "WithVKSInstances": False}
+        r = requests.post(self.search_url, headers=HEADERS, cookies=cookie)
+        print(r)
+
+
+    def start(self):
+        date_from = str(input('Введите первую дату (дд.мм.гггг): '))
+        date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
+        date_from, date_to = self.remake_date(date_from,date_to)
+        print(date_from, date_to)
+        selected_party_member = str(input('Введите участника дела(если не требуется введите Enter): '))
+        if selected_party_member:
+            print(selected_party_member)
+        else:
+            selected_party_member = []
+        selected_courts = select_courts()
+        if selected_courts:
+            print(selected_courts)
+        count_affairs = self.get_count_affairs(selected_courts, date_from, date_to, selected_party_member)
 
     def save_data_excel(self, data):
         file_name = 'data.xls'
@@ -408,6 +445,7 @@ class ParserKadabitr:
                 return phones
 
     def get_cookie(self):
+        print('[INFO] Получение Сookie из selenium')
         geckodriver_path = os.path.abspath('geckodriver.exe')
         driver = webdriver.Firefox(executable_path=geckodriver_path)
         driver.get(self.main_page)
@@ -421,11 +459,11 @@ class ParserKadabitr:
             if 'wasm' in cookies_name:
                 driver.close()
                 break
+        print('[INFO] Сookie получены')
         return cookies
 
 
 if __name__ == '__main__':
     parser = ParserKadabitr()
-    cookies = parser.get_cookie()
-    print(cookies)
+    parser.start()
     #parser.get_data()
