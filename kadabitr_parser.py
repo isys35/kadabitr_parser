@@ -1,12 +1,12 @@
 import requests
 from requests import Session
-from requests import Session
 import time
 import traceback
-from requests.exceptions import ConnectionError
 from bs4 import BeautifulSoup as BS
 import xlwt
 import webbrowser
+from selenium import webdriver
+import os
 
 
 def load_file(file_name):
@@ -73,13 +73,14 @@ class ParserKadabitr:
             'Upgrade-Insecure-Requests': '1',
             'TE': 'Trailers'
         }
-        self.full_cookies = str(input('Введите cookie: '))
-        self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
-        self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
-        self.party_member = str(input('Введите участгника дела(если не требуется введите Enter): '))
-        self.courts = str(self.get_courts()).replace("'", '"')
-        self.remake_date()
-        self.head_cooikies, self.wasm = self.split_cookies()
+        #self.full_cookies = str(input('Введите cookie: '))
+        #self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
+        #self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
+        #self.party_member = str(input('Введите участгника дела(если не требуется введите Enter): '))
+        #self.courts = str(self.get_courts()).replace("'", '"')
+        #self.remake_date()
+        #self.head_cooikies, self.wasm = self.split_cookies()
+        self.main_page = 'https://kad.arbitr.ru/'
         self.count_affairs = 0
         self.url_find_phone_by_inn = 'https://www.list-org.com/search?type=inn&val='
         self.session = Session()
@@ -406,14 +407,25 @@ class ParserKadabitr:
                                 phones.append(a.text)
                 return phones
 
+    def get_cookie(self):
+        geckodriver_path = os.path.abspath('geckodriver.exe')
+        driver = webdriver.Firefox(executable_path=geckodriver_path)
+        driver.get(self.main_page)
+        element = driver.find_element_by_css_selector('a.b-promo_notification-popup-close.js-promo_notification-popup-close')
+        element.click()
+        element = driver.find_element_by_css_selector('.civil')
+        element.click()
+        while True:
+            cookies = driver.get_cookies()
+            cookies_name = [cookie['name'] for cookie in cookies]
+            if 'wasm' in cookies_name:
+                driver.close()
+                break
+        return cookies
+
 
 if __name__ == '__main__':
-    try:
-        parser = ParserKadabitr()
-        parser.get_data()
-
-    except Exception as ex:
-        print(ex)
-        print(traceback.format_exc())
-        with open('eror.txt', 'w') as eror_file:
-            eror_file.write(str(ex) + '\n' + str(traceback.format_exc()))
+    parser = ParserKadabitr()
+    cookies = parser.get_cookie()
+    print(cookies)
+    #parser.get_data()
