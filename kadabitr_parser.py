@@ -7,6 +7,7 @@ import xlwt
 import webbrowser
 from selenium import webdriver
 import os
+import sys
 
 
 def load_file(file_name):
@@ -126,11 +127,11 @@ class ParserKadabitr:
         day_from = date_from.split('.')[0]
         month_from = date_from.split('.')[1]
         year_from = date_from.split('.')[2]
-        date_from = '"%s-%s-%sT00:00:00"' % (year_from, month_from, day_from)
+        date_from = '%s-%s-%sT00:00:00' % (year_from, month_from, day_from)
         day_to = date_to.split('.')[0]
         month_to = date_to.split('.')[1]
         year_to = date_to.split('.')[2]
-        date_to = '"%s-%s-%sT23:59:59"' % (year_to, month_to, day_to)
+        date_to = '%s-%s-%sT23:59:59' % (year_to, month_to, day_to)
         return date_from, date_to
 
     def get_data_json(self, page, date_from, date_to):
@@ -183,7 +184,7 @@ class ParserKadabitr:
         self.save_data_excel(data_allpages)
 
     def get_count_affairs(self, selected_courts, date_from, date_to, selected_party_member):
-        cookie = self.get_cookie()
+        cookies = self.get_cookie()
         post_data = {"Page": 1,
                      "Count": 25,
                      "CaseType": "G",
@@ -194,24 +195,38 @@ class ParserKadabitr:
                      "Judges": [],
                      "CaseNumbers": [],
                      "WithVKSInstances": False}
-        r = requests.post(self.search_url, headers=HEADERS, cookies=cookie)
-        print(r)
-
+        r = requests.post(self.search_url, headers=HEADERS, json=post_data, cookies=cookies)
+        print(r.request.body)
+        if r.status_code == 200:
+            soup = BS(r.text, 'html.parser')
+            count_affairs = soup.select('#documentsTotalCount')[0]['value']
+            return int(count_affairs)
+        else:
+            print(r.status_code)
+            sys.exit()
 
     def start(self):
         date_from = str(input('Введите первую дату (дд.мм.гггг): '))
         date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
-        date_from, date_to = self.remake_date(date_from,date_to)
+        date_from, date_to = self.remake_date(date_from, date_to)
         print(date_from, date_to)
         selected_party_member = str(input('Введите участника дела(если не требуется введите Enter): '))
         if selected_party_member:
-            print(selected_party_member)
+            selected_party_member = [{"Name": f"{selected_party_member}", "Type": 1, "ExactMatch": False}]
         else:
             selected_party_member = []
         selected_courts = select_courts()
         if selected_courts:
             print(selected_courts)
         count_affairs = self.get_count_affairs(selected_courts, date_from, date_to, selected_party_member)
+        print('[INFO] Количество дел ' + str(count_affairs))
+        if count_affairs > 1000:
+            print('[WARNING] Неполная база, т.к количество данных больше тысячи')
+            count_affairs = 1000
+        pages = count_affairs // 25
+        if count_affairs % 25 != 0:
+            pages += 1
+        print(pages)
 
     def save_data_excel(self, data):
         file_name = 'data.xls'
@@ -459,8 +474,11 @@ class ParserKadabitr:
             if 'wasm' in cookies_name:
                 driver.close()
                 break
+        cookies_dict = {}
+        for cookie in cookies:
+            cookies_dict[cookie['name']] = cookie['value']
         print('[INFO] Сookie получены')
-        return cookies
+        return cookies_dict
 
 
 if __name__ == '__main__':
