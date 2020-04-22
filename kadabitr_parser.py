@@ -24,6 +24,8 @@ COURTS = load_file('courts.txt')
 HEADERS = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
 }
+SEARCH_URL = 'https://kad.arbitr.ru/Kad/SearchInstances'
+MAIN_URL = 'https://kad.arbitr.ru/'
 
 
 def select_courts():
@@ -43,7 +45,8 @@ def select_courts():
 
 class ParserKadabitr:
     def __init__(self):
-        self.search_url = 'https://kad.arbitr.ru/Kad/SearchInstances'
+        self.cookies = None
+        self.proxie = None
         # self.headers_search = {
         #     'Host': 'kad.arbitr.ru',
         #     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
@@ -99,7 +102,6 @@ class ParserKadabitr:
         #self.courts = str(self.get_courts()).replace("'", '"')
         #self.remake_date()
         #self.head_cooikies, self.wasm = self.split_cookies()
-        self.main_page = 'https://kad.arbitr.ru/'
         # self.count_affairs = 0
         # self.url_find_phone_by_inn = 'https://www.list-org.com/search?type=inn&val='
         # self.session = Session()
@@ -183,8 +185,99 @@ class ParserKadabitr:
             self.save_data_excel(data_allpages)
         self.save_data_excel(data_allpages)
 
+    def parsing_page(self, response):
+        soup = BS(response.content, 'lxml')
+        containers = soup.select('.b-container')
+        all_split_containers = []
+        i = 0
+        data = []
+        while i != len(containers):
+            all_split_containers.append([containers[i], containers[i + 1], containers[i + 2], containers[i + 3]])
+            i += 4
+        for affair in all_split_containers:
+            date = affair[0].select('.civil')
+            if date:
+                date = date[0].text.replace('\n', '')
+            else:
+                date = affair[0].select('.civil_simple')[0].text.replace('\n', '')
+            num = affair[0].select('.num_case')[0].text.replace('\n', '').strip()
+            href = affair[0].select('.num_case')[0]['href']
+            judge = affair[1].select('.judge')
+            if judge:
+                judge = affair[1].select('.judge')[0]['title']
+            else:
+                judge = None
+            instance = affair[1].select('div')[-1]['title']
+            plaintiff_name = affair[2].select('.js-rolloverHtml')
+            if plaintiff_name:
+                plaintiff_name = affair[2].select('.js-rolloverHtml')[0].select('strong')[0].text
+                plaintiff_inn = affair[2].select('.js-rolloverHtml')[0].select('div')
+                if plaintiff_inn:
+                    plaintiff_inn = plaintiff_inn[0].text.replace('\n', '').strip()
+                else:
+                    plaintiff_inn = 'Данные скрыты'
+                plaintiff_adress = affair[2].select('.js-rolloverHtml')[0].text \
+                    .replace(plaintiff_name, '').replace(plaintiff_inn, '').replace('\n', '').strip()
+            else:
+                plaintiff_name = ''
+                plaintiff_inn = ''
+                plaintiff_adress = ''
+            defendant_name = affair[3].select('.js-rolloverHtml')
+            if defendant_name:
+                defendant_name = affair[3].select('.js-rolloverHtml')[0].select('strong')[0].text
+                defendant_inn = affair[3].select('.js-rolloverHtml')[0].select('div')
+                if defendant_inn:
+                    defendant_inn = defendant_inn[0].text.replace('\n', '').strip()
+                else:
+                    defendant_inn = 'Данные скрыты'
+                defendant_adress = affair[3].select('.js-rolloverHtml')[0].text \
+                    .replace(defendant_name, '').replace(defendant_inn, '').replace('\n', '').strip()
+            else:
+                defendant_name = ''
+                defendant_inn = ''
+                defendant_adress = ''
+            if defendant_inn:
+                defendant_inn = defendant_inn.split('ИНН: ')[-1]
+            affair_data = {
+                'date': date,
+                'num': num,
+                'href': href,
+                'judge': judge,
+                'instance': instance,
+                'plaintiff_name': plaintiff_name,
+                'plaintiff_inn': plaintiff_inn,
+                'plaintiff_adress': plaintiff_adress,
+                'defendant_name': defendant_name,
+                'defendant_inn': defendant_inn,
+                'defendant_adress': defendant_adress
+            }
+            data.append(affair_data)
+        return data
+
+    def get_data_title(self, selected_courts, date_from, date_to, selected_party_member, page):
+        if not self.cookies:
+            self.cookies = self.get_cookie()
+        post_data = {"Page": page,
+                     "Count": 25,
+                     "CaseType": "G",
+                     "Courts": selected_courts,
+                     "DateFrom": date_from,
+                     "DateTo": date_to,
+                     "Sides": selected_party_member,
+                     "Judges": [],
+                     "CaseNumbers": [],
+                     "WithVKSInstances": False}
+        r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies)
+        if r.status_code == 200:
+            data = self.parsing_page(r)
+            return data
+        else:
+            print(r.status_code)
+            sys.exit()
+
     def get_count_affairs(self, selected_courts, date_from, date_to, selected_party_member):
-        cookies = self.get_cookie()
+        if not self.cookies:
+            self.cookies = self.get_cookie()
         post_data = {"Page": 1,
                      "Count": 25,
                      "CaseType": "G",
@@ -195,10 +288,10 @@ class ParserKadabitr:
                      "Judges": [],
                      "CaseNumbers": [],
                      "WithVKSInstances": False}
-        r = requests.post(self.search_url, headers=HEADERS, json=post_data, cookies=cookies)
+        r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies)
         print(r.request.body)
         if r.status_code == 200:
-            soup = BS(r.text, 'html.parser')
+            soup = BS(r.text, 'lxml')
             count_affairs = soup.select('#documentsTotalCount')[0]['value']
             return int(count_affairs)
         else:
@@ -226,7 +319,29 @@ class ParserKadabitr:
         pages = count_affairs // 25
         if count_affairs % 25 != 0:
             pages += 1
-        print(pages)
+        print('[INFO] Количетсво страниц ' + str(pages))
+        data_titles = []
+        for page in range(1, pages+1):
+            print('[INFO] Страница ' + str(page))
+            data_title = self.get_data_title(selected_courts, date_from, date_to, selected_party_member, page)
+            data_titles.extend(data_title)
+        for data in data_titles:
+            print('[INFO] Получение суммы исковых требований для ' + data['href'])
+            price = self.get_price(data['href'])
+            price = price.replace(',', '.')
+            print(price)
+            phones = self.get_phone(data['defendant_inn'])
+            print(phones)
+            try:
+                data['price'] = float(price)
+            except ValueError:
+                data['price'] = None
+            data['phones'] = phones
+            self.count_affairs -= 1
+            print('[INFO] Осталось {} дел '.format(self.count_affairs))
+            self.save_data_excel(data_allpages)
+        self.save_data_excel(data_allpages)
+
 
     def save_data_excel(self, data):
         file_name = 'data.xls'
@@ -386,28 +501,31 @@ class ParserKadabitr:
         return url_req
 
     def get_price(self, url):
-        print('[INFO] Получение суммы исковых требований для ' + url)
-        self.headers_price_get['Referer'] = url
-        self.headers_price_get['Cookie'] = self.headers_search['Cookie']
-        response = None
-        while not response:
-            try:
-                req_url = self.get_price_request(url)
-                time.sleep(.3)
-                response = requests.get(req_url, headers=self.headers_price_get)
-                print(response)
-                if response.status_code == 200:
-                    return response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
-                elif response.status_code == 451:
-                    self.full_cookies = str(input('Введите cookie: '))
-                    self.head_cooikies, self.wasm = self.split_cookies()
-                    self.update_headers(self.wasm)
-                    self.headers_price_get['Cookie'] = self.headers_search['Cookie']
-            except Exception as ex:
-                print(ex)
-                print('[WARNING] Проблема с подключением')
-                print('[INFO] Попытка подключения....')
-                time.sleep(30)
+        pass
+
+    # def get_price(self, url):
+    #     print('[INFO] Получение суммы исковых требований для ' + url)
+    #     self.headers_price_get['Referer'] = url
+    #     self.headers_price_get['Cookie'] = self.headers_search['Cookie']
+    #     response = None
+    #     while not response:
+    #         try:
+    #             req_url = self.get_price_request(url)
+    #             time.sleep(.3)
+    #             response = requests.get(req_url, headers=self.headers_price_get)
+    #             print(response)
+    #             if response.status_code == 200:
+    #                 return response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
+    #             elif response.status_code == 451:
+    #                 self.full_cookies = str(input('Введите cookie: '))
+    #                 self.head_cooikies, self.wasm = self.split_cookies()
+    #                 self.update_headers(self.wasm)
+    #                 self.headers_price_get['Cookie'] = self.headers_search['Cookie']
+    #         except Exception as ex:
+    #             print(ex)
+    #             print('[WARNING] Проблема с подключением')
+    #             print('[INFO] Попытка подключения....')
+    #             time.sleep(30)
 
     def get_phone_url(self, inn):
         time.sleep(.2)
@@ -463,7 +581,7 @@ class ParserKadabitr:
         print('[INFO] Получение Сookie из selenium')
         geckodriver_path = os.path.abspath('geckodriver.exe')
         driver = webdriver.Firefox(executable_path=geckodriver_path)
-        driver.get(self.main_page)
+        driver.get(MAIN_URL)
         element = driver.find_element_by_css_selector('a.b-promo_notification-popup-close.js-promo_notification-popup-close')
         element.click()
         element = driver.find_element_by_css_selector('.civil')
