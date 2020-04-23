@@ -6,8 +6,11 @@ from bs4 import BeautifulSoup as BS
 import xlwt
 import webbrowser
 from selenium import webdriver
+from selenium.webdriver.firefox.options import Options
 import os
 import sys
+import proxy
+from requests.exceptions import ProxyError,SSLError
 
 
 def load_file(file_name):
@@ -47,6 +50,7 @@ class ParserKadabitr:
     def __init__(self):
         self.cookies = None
         self.proxie = None
+        self.proxie_list = list()
         # self.headers_search = {
         #     'Host': 'kad.arbitr.ru',
         #     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
@@ -135,23 +139,6 @@ class ParserKadabitr:
         year_to = date_to.split('.')[2]
         date_to = '%s-%s-%sT23:59:59' % (year_to, month_to, day_to)
         return date_from, date_to
-
-    def get_data_json(self, page, date_from, date_to):
-        if self.party_member:
-            data = '{"Page":%i,"Count":25,"CaseType":"G","Courts":%s,"DateFrom":%s,"DateTo":%s,"Sides":[{"Name":"%s","Type":1,"ExactMatch":false}],"Judges":[],' \
-                   '"CaseNumbers":[],"WithVKSInstances":false}' % (
-                   page, self.courts, date_from, date_to, self.party_member)
-        else:
-            data = '{"Page":%i,"Count":25,"CaseType":"G","Courts":%s,"DateFrom":%s,"DateTo":%s,"Sides":[],"Judges":[],' \
-                   '"CaseNumbers":[],"WithVKSInstances":false}' % (page, self.courts, date_from, date_to)
-        return data
-
-    def get_elements_in_data(self):
-        time.sleep(2)
-        response_txt = self.response_text(1)
-        soup = BS(response_txt, 'html.parser')
-        count_affairs = soup.select('#documentsTotalCount')[0]['value']
-        return count_affairs
 
     def get_data(self):
         count_affairs = int(self.get_elements_in_data())
@@ -267,10 +254,12 @@ class ParserKadabitr:
                      "Judges": [],
                      "CaseNumbers": [],
                      "WithVKSInstances": False}
-        r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies)
+        r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies, proxies=self.proxie)
         if r.status_code == 200:
             data = self.parsing_page(r)
             return data
+        elif r.status_code == 429:
+            self.update_proxie()
         else:
             print(r.status_code)
             sys.exit()
@@ -288,15 +277,27 @@ class ParserKadabitr:
                      "Judges": [],
                      "CaseNumbers": [],
                      "WithVKSInstances": False}
-        r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies)
-        print(r.request.body)
-        if r.status_code == 200:
-            soup = BS(r.text, 'lxml')
-            count_affairs = soup.select('#documentsTotalCount')[0]['value']
-            return int(count_affairs)
-        else:
-            print(r.status_code)
-            sys.exit()
+        while True:
+            try:
+                r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies, proxies=self.proxie)
+            except ProxyError:
+                print(str(self.proxie) + ' ProxyError')
+                self.update_proxie()
+                continue
+            if r.status_code == 200:
+                soup = BS(r.text, 'lxml')
+                count_affairs = soup.select('#documentsTotalCount')[0]['value']
+                return int(count_affairs)
+            elif r.status_code == 429:
+                self.update_proxie()
+            else:
+                print(r.status_code)
+                sys.exit()
+
+    def update_proxie(self):
+        if not self.proxie_list:
+            self.proxie_list = proxy.get_proxies()
+        self.proxie = {'https': self.proxie_list.pop()}
 
     def start(self):
         date_from = str(input('Введите первую дату (дд.мм.гггг): '))
@@ -328,20 +329,19 @@ class ParserKadabitr:
         for data in data_titles:
             print('[INFO] Получение суммы исковых требований для ' + data['href'])
             price = self.get_price(data['href'])
-            price = price.replace(',', '.')
-            print(price)
-            phones = self.get_phone(data['defendant_inn'])
-            print(phones)
-            try:
-                data['price'] = float(price)
-            except ValueError:
-                data['price'] = None
-            data['phones'] = phones
-            self.count_affairs -= 1
-            print('[INFO] Осталось {} дел '.format(self.count_affairs))
-            self.save_data_excel(data_allpages)
-        self.save_data_excel(data_allpages)
-
+        #     price = price.replace(',', '.')
+        #     print(price)
+        #     phones = self.get_phone(data['defendant_inn'])
+        #     print(phones)
+        #     try:
+        #         data['price'] = float(price)
+        #     except ValueError:
+        #         data['price'] = None
+        #     data['phones'] = phones
+        #     self.count_affairs -= 1
+        #     print('[INFO] Осталось {} дел '.format(self.count_affairs))
+        #     self.save_data_excel(data_allpages)
+        # self.save_data_excel(data_allpages)
 
     def save_data_excel(self, data):
         file_name = 'data.xls'
@@ -467,30 +467,30 @@ class ParserKadabitr:
             data.append(affair_data)
         return data
 
-    def get_price_id(self, url):
-        self.update_headers(self.wasm)
-        response = None
-        while not response:
-            try:
-                time.sleep(.3)
-                response = requests.get(url, headers=self.headers_price)
-                print(response)
-                if response.status_code == 200:
-                    # with open('page2.html', 'w', encoding='utf8') as html_file:
-                    # html_file.write(response.text)
-                    soup = BS(response.text, 'html.parser')
-                    main_id = soup.select('.js-instanceId')[-1]['value']
-                    return main_id
-                elif response.status_code == 451:
-                    self.full_cookies = str(input('Введите cookie: '))
-                    self.head_cooikies, self.wasm = self.split_cookies()
-                    self.update_headers(self.wasm)
-                    self.headers_price_get['Cookie'] = self.headers_search['Cookie']
-            except Exception as ex:
-                print(ex)
-                print('[WARNING] Проблема с подключением')
-                time.sleep(30)
-                print('[INFO] Попытка подключения')
+    # def get_price_id(self, url):
+    #     self.update_headers(self.wasm)
+    #     response = None
+    #     while not response:
+    #         try:
+    #             time.sleep(.3)
+    #             response = requests.get(url, headers=self.headers_price)
+    #             print(response)
+    #             if response.status_code == 200:
+    #                 # with open('page2.html', 'w', encoding='utf8') as html_file:
+    #                 # html_file.write(response.text)
+    #                 soup = BS(response.text, 'html.parser')
+    #                 main_id = soup.select('.js-instanceId')[-1]['value']
+    #                 return main_id
+    #             elif response.status_code == 451:
+    #                 self.full_cookies = str(input('Введите cookie: '))
+    #                 self.head_cooikies, self.wasm = self.split_cookies()
+    #                 self.update_headers(self.wasm)
+    #                 self.headers_price_get['Cookie'] = self.headers_search['Cookie']
+    #         except Exception as ex:
+    #             print(ex)
+    #             print('[WARNING] Проблема с подключением')
+    #             time.sleep(30)
+    #             print('[INFO] Попытка подключения')
 
     def get_price_request(self, url):
         price_id = self.get_price_id(url)
@@ -500,8 +500,27 @@ class ParserKadabitr:
                   '&page=1' % (time_id, price_id, case_id)
         return url_req
 
+
+
     def get_price(self, url):
-        pass
+        #headers = HEADERS
+        #headers['Referer'] = url
+        response = requests.get(url, headers=HEADERS, cookies=self.cookies)
+        if response.status_code == 200:
+            soup = BS(response.text, 'html.parser')
+            price_id = soup.select('.js-instanceId')[-1]['value']
+        if response.status_code == 429:
+            self.update_proxie()
+        else:
+            print(response.status_code)
+            sys.exit()
+        case_id = url.split('/')[-1]
+        time_id = int(time.time() * 1000)
+        url_hronoligic_data = 'https://kad.arbitr.ru/Kad/InstanceDocumentsPage?_={}&id={}&caseId={}&withProtocols' \
+                              '=true&perPage=30&page=1'.format(time_id, price_id, case_id)
+
+
+
 
     # def get_price(self, url):
     #     print('[INFO] Получение суммы исковых требований для ' + url)
@@ -578,12 +597,16 @@ class ParserKadabitr:
                 return phones
 
     def get_cookie(self):
-        print('[INFO] Получение Сookie из selenium')
+        print('[INFO] Обновление Сookie из selenium')
         geckodriver_path = os.path.abspath('geckodriver.exe')
-        driver = webdriver.Firefox(executable_path=geckodriver_path)
+        options = Options()
+        options.headless = True
+        driver = webdriver.Firefox(executable_path=geckodriver_path, options=options)
         driver.get(MAIN_URL)
-        element = driver.find_element_by_css_selector('a.b-promo_notification-popup-close.js-promo_notification-popup-close')
-        element.click()
+        page_source = driver.page_source
+        if BS(page_source, 'lxml').select_one('a.b-promo_notification-popup-close.js-promo_notification-popup-close'):
+            element = driver.find_element_by_css_selector('a.b-promo_notification-popup-close.js-promo_notification-popup-close')
+            element.click()
         element = driver.find_element_by_css_selector('.civil')
         element.click()
         while True:
@@ -602,4 +625,3 @@ class ParserKadabitr:
 if __name__ == '__main__':
     parser = ParserKadabitr()
     parser.start()
-    #parser.get_data()
