@@ -10,7 +10,8 @@ from selenium.webdriver.firefox.options import Options
 import os
 import sys
 import proxy
-from requests.exceptions import ProxyError,SSLError
+from requests.exceptions import ProxyError, SSLError
+from selenium.common.exceptions import WebDriverException
 
 
 def load_file(file_name):
@@ -25,7 +26,7 @@ def load_file(file_name):
 
 COURTS = load_file('courts.txt')
 HEADERS = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
 }
 SEARCH_URL = 'https://kad.arbitr.ru/Kad/SearchInstances'
 MAIN_URL = 'https://kad.arbitr.ru/'
@@ -99,13 +100,13 @@ class ParserKadabitr:
         #     'Upgrade-Insecure-Requests': '1',
         #     'TE': 'Trailers'
         # }
-        #self.full_cookies = str(input('Введите cookie: '))
-        #self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
-        #self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
-        #self.party_member = str(input('Введите участгника дела(если не требуется введите Enter): '))
-        #self.courts = str(self.get_courts()).replace("'", '"')
-        #self.remake_date()
-        #self.head_cooikies, self.wasm = self.split_cookies()
+        # self.full_cookies = str(input('Введите cookie: '))
+        # self.date_from = str(input('Введите первую дату (дд.мм.гггг): '))
+        # self.date_to = str(input('Введите последнюю дату (дд.мм.гггг): '))
+        # self.party_member = str(input('Введите участгника дела(если не требуется введите Enter): '))
+        # self.courts = str(self.get_courts()).replace("'", '"')
+        # self.remake_date()
+        # self.head_cooikies, self.wasm = self.split_cookies()
         # self.count_affairs = 0
         # self.url_find_phone_by_inn = 'https://www.list-org.com/search?type=inn&val='
         # self.session = Session()
@@ -243,7 +244,7 @@ class ParserKadabitr:
 
     def get_data_title(self, selected_courts, date_from, date_to, selected_party_member, page):
         if not self.cookies:
-            self.cookies = self.get_cookie()
+            self.update_cookie()
         post_data = {"Page": page,
                      "Count": 25,
                      "CaseType": "G",
@@ -266,7 +267,7 @@ class ParserKadabitr:
 
     def get_count_affairs(self, selected_courts, date_from, date_to, selected_party_member):
         if not self.cookies:
-            self.cookies = self.get_cookie()
+            self.update_cookie()
         post_data = {"Page": 1,
                      "Count": 25,
                      "CaseType": "G",
@@ -279,7 +280,8 @@ class ParserKadabitr:
                      "WithVKSInstances": False}
         while True:
             try:
-                r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies, proxies=self.proxie)
+                r = requests.post(SEARCH_URL, headers=HEADERS, json=post_data, cookies=self.cookies,
+                                  proxies=self.proxie)
             except ProxyError:
                 print(str(self.proxie) + ' ProxyError')
                 self.update_proxie()
@@ -298,6 +300,7 @@ class ParserKadabitr:
         if not self.proxie_list:
             self.proxie_list = proxy.get_proxies()
         self.proxie = {'https': self.proxie_list.pop()}
+        self.update_cookie()
 
     def start(self):
         date_from = str(input('Введите первую дату (дд.мм.гггг): '))
@@ -322,7 +325,7 @@ class ParserKadabitr:
             pages += 1
         print('[INFO] Количетсво страниц ' + str(pages))
         data_titles = []
-        for page in range(1, pages+1):
+        for page in range(1, pages + 1):
             print('[INFO] Страница ' + str(page))
             data_title = self.get_data_title(selected_courts, date_from, date_to, selected_party_member, page)
             data_titles.extend(data_title)
@@ -500,27 +503,30 @@ class ParserKadabitr:
                   '&page=1' % (time_id, price_id, case_id)
         return url_req
 
-
-
     def get_price(self, url):
-        #headers = HEADERS
-        #headers['Referer'] = url
-        response = requests.get(url, headers=HEADERS, cookies=self.cookies)
-        if response.status_code == 200:
-            soup = BS(response.text, 'html.parser')
-            price_id = soup.select('.js-instanceId')[-1]['value']
-        if response.status_code == 429:
-            self.update_proxie()
-        else:
-            print(response.status_code)
-            sys.exit()
+        # headers = HEADERS
+        # headers['Referer'] = url
+        while True:
+            response = requests.get(url, headers=HEADERS, cookies=self.cookies)
+            if response.status_code == 200:
+                soup = BS(response.text, 'html.parser')
+                price_id = soup.select('.js-instanceId')[-1]['value']
+                break
+            elif response.status_code == 429:
+                self.update_proxie()
+            else:
+                print(response.status_code)
+                sys.exit()
         case_id = url.split('/')[-1]
-        time_id = int(time.time() * 1000)
-        url_hronoligic_data = 'https://kad.arbitr.ru/Kad/InstanceDocumentsPage?_={}&id={}&caseId={}&withProtocols' \
-                              '=true&perPage=30&page=1'.format(time_id, price_id, case_id)
-
-
-
+        while True:
+            time_id = int(time.time() * 1000)
+            url_hronoligic_data = 'https://kad.arbitr.ru/Kad/InstanceDocumentsPage?_={}&id={}&caseId={}&withProtocols' \
+                                  '=true&perPage=30&page=1'.format(time_id, price_id, case_id)
+            response = requests.get(url_hronoligic_data, headers=HEADERS, cookies=self.cookies)
+            if response.status_code == 200:
+                price = response.json()['Result']['Items'][-1]['AdditionalInfo'].split(' ')[-1]
+                print(price)
+                return price
 
     # def get_price(self, url):
     #     print('[INFO] Получение суммы исковых требований для ' + url)
@@ -596,16 +602,34 @@ class ParserKadabitr:
                                 phones.append(a.text)
                 return phones
 
-    def get_cookie(self):
+    def update_cookie(self):
         print('[INFO] Обновление Сookie из selenium')
         geckodriver_path = os.path.abspath('geckodriver.exe')
         options = Options()
-        options.headless = True
-        driver = webdriver.Firefox(executable_path=geckodriver_path, options=options)
-        driver.get(MAIN_URL)
+        options.headless = False
+        if self.proxie:
+            firefox_capabilities = webdriver.DesiredCapabilities.FIREFOX
+            firefox_capabilities['marionette'] = True
+            firefox_capabilities['proxy'] = {
+                "proxyType": "MANUAL",
+                "httpProxy": self.proxie['https'],
+                "ftpProxy": self.proxie['https'],
+                "sslProxy": self.proxie['https']
+            }
+            driver = webdriver.Firefox(executable_path=geckodriver_path,
+                                       options=options, capabilities=firefox_capabilities)
+        else:
+            driver = webdriver.Firefox(executable_path=geckodriver_path, options=options)
+        try:
+            driver.get(MAIN_URL)
+        except WebDriverException:
+            print('WebDriverException')
+            driver.close()
+            return self.update_proxie()
         page_source = driver.page_source
         if BS(page_source, 'lxml').select_one('a.b-promo_notification-popup-close.js-promo_notification-popup-close'):
-            element = driver.find_element_by_css_selector('a.b-promo_notification-popup-close.js-promo_notification-popup-close')
+            element = driver.find_element_by_css_selector(
+                'a.b-promo_notification-popup-close.js-promo_notification-popup-close')
             element.click()
         element = driver.find_element_by_css_selector('.civil')
         element.click()
@@ -618,8 +642,8 @@ class ParserKadabitr:
         cookies_dict = {}
         for cookie in cookies:
             cookies_dict[cookie['name']] = cookie['value']
-        print('[INFO] Сookie получены')
-        return cookies_dict
+        print('[INFO] Cookies обновлены')
+        self.cookies = cookies_dict
 
 
 if __name__ == '__main__':
